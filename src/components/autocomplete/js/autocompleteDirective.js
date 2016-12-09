@@ -299,7 +299,6 @@ function MdAutocomplete ($$mdSvgRegistry) {
                         \'md-menu-showing\': !$mdAutocompleteCtrl.hidden, \
                         \'md-show-clear-button\': !!clearButton }">\
           ' + getInputElement() + '\
-          ' + getClearButton() + '\
           <md-progress-linear\
               class="' + (attr.mdFloatingLabel ? 'md-inline' : '') + '"\
               ng-if="$mdAutocompleteCtrl.loadingIsVisible()"\
@@ -373,14 +372,7 @@ function MdAutocomplete ($$mdSvgRegistry) {
                   aria-haspopup="true"\
                   aria-activedescendant=""\
                   aria-expanded="{{!$mdAutocompleteCtrl.hidden}}"/>\
-                  <button\
-                      type="button"\
-                      tabindex="-1"\
-                      ng-if="$mdAutocompleteCtrl.scope.searchText && !$mdAutocompleteCtrl.isDisabled"\
-                      ng-click="$mdAutocompleteCtrl.clear($event)">\
-                    <md-icon md-svg-src="' + $$mdSvgRegistry.mdClose + '"></md-icon>\
-                    <span class="md-visually-hidden">Clear</span>\
-                  </button>\
+                  ' + getClearButton() + '\
               <div md-autocomplete-parent-scope md-autocomplete-replace>' + leftover + '</div>\
             </md-input-container>';
         } else {
@@ -408,7 +400,8 @@ function MdAutocomplete ($$mdSvgRegistry) {
                 role="combobox"\
                 aria-haspopup="true"\
                 aria-activedescendant=""\
-                aria-expanded="{{!$mdAutocompleteCtrl.hidden}}"/>';
+                aria-expanded="{{!$mdAutocompleteCtrl.hidden}}"/> \
+                ' + getClearButton() ;
         }
       }
 
@@ -418,6 +411,7 @@ function MdAutocomplete ($$mdSvgRegistry) {
               'type="button" ' +
               'aria-label="Clear Input" ' +
               'tabindex="-1" ' +
+              'ng-class="{ \'floating-label\': floatingLabel && !!clearButton}"' +
               'ng-if="clearButton && $mdAutocompleteCtrl.scope.searchText && !$mdAutocompleteCtrl.isDisabled" ' +
               'ng-click="$mdAutocompleteCtrl.clear($event)">' +
             '<md-icon md-svg-src="' + $$mdSvgRegistry.mdClose + '"></md-icon>' +

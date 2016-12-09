@@ -36,6 +36,9 @@ md-autocomplete {
         top: $md-autocomplete-input-offset;
         width: $md-autocomplete-clear-size;
         height: $md-autocomplete-clear-size;
+        &.floating-label {
+          top: 0;
+        }
       }
 
       input {
