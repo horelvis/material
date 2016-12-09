@@ -128,6 +128,34 @@ describe('md-datepicker', function() {
     expect(ngElement.attr('type')).toBe('date');
   });
 
+  it('should pass the timezone to the formatting function', function() {
+    spyOn(controller.locale, 'formatDate');
+
+    createDatepickerInstance('<md-datepicker ng-model="myDate" ' +
+      'ng-model-options="{ timezone: \'utc\' }"></md-datepicker>');
+
+    expect(controller.locale.formatDate).toHaveBeenCalledWith(pageScope.myDate, 'utc');
+  });
+
+  it('should allow for the locale to be overwritten on a specific element', function() {
+    pageScope.myDate = new Date(2015, SEP, 1);
+
+    pageScope.customLocale = {
+      formatDate: function() {
+        return 'September First';
+      }
+    };
+
+    spyOn(pageScope.customLocale, 'formatDate').and.callThrough();
+
+    createDatepickerInstance(
+      '<md-datepicker ng-model="myDate" md-date-locale="customLocale"></md-datepicker>'
+    );
+
+    expect(pageScope.customLocale.formatDate).toHaveBeenCalled();
+    expect(ngElement.find('input').val()).toBe('September First');
+  });
+
   describe('ngMessages support', function() {
     it('should set the `required` $error flag', function() {
       pageScope.isRequired = true;
@@ -796,7 +824,7 @@ describe('md-datepicker', function() {
     });
 
     it('should set the aria-owns value, corresponding to the id of the calendar pane', function() {
-      var ariaAttr = controller.ngInputElement.attr('aria-owns');
+      var ariaAttr = ngElement.attr('aria-owns');
 
       expect(ariaAttr).toBeTruthy();
       expect(controller.calendarPane.id).toBe(ariaAttr);

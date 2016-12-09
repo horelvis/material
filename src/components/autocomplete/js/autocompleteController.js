@@ -21,7 +21,8 @@ function MdAutocompleteCtrl ($scope, $element, $mdUtil, $mdConstant, $mdTheming,
       hasFocus             = false,
       fetchesInProgress    = 0,
       enableWrapScroll     = null,
-      inputModelCtrl       = null;
+      inputModelCtrl       = null,
+      debouncedOnResize    = $mdUtil.debounce(onWindowResize);
 
   // Public Exported Variables with handlers
   defineProperty('hidden', handleHiddenChange, true);
@@ -73,7 +74,13 @@ function MdAutocompleteCtrl ($scope, $element, $mdUtil, $mdConstant, $mdTheming,
    * Initialize the controller, setup watchers, gather elements
    */
   function init () {
-    $mdUtil.initOptionalProperties($scope, $attrs, { searchText: '', selectedItem: null });
+
+    $mdUtil.initOptionalProperties($scope, $attrs, {
+      searchText: '',
+      selectedItem: null,
+      clearButton: false
+    });
+
     $mdTheming($element);
     configureWatchers();
     $mdUtil.nextTick(function () {
@@ -113,7 +120,13 @@ function MdAutocompleteCtrl ($scope, $element, $mdUtil, $mdConstant, $mdTheming,
         left   = hrect.left - root.left,
         width  = hrect.width,
         offset = getVerticalOffset(),
+        position = $scope.dropdownPosition,
         styles;
+
+    // Automatically determine dropdown placement based on available space in viewport.
+    if (!position) {
+      position = (top > bot && root.height - hrect.bottom - MENU_PADDING < dropdownHeight) ? 'top' : 'bottom';
+    }
     // Adjust the width to account for the padding provided by `md-input-container`
     if ($attrs.mdFloatingLabel) {
       left += INPUT_PADDING;
@@ -124,7 +137,8 @@ function MdAutocompleteCtrl ($scope, $element, $mdUtil, $mdConstant, $mdTheming,
       minWidth: width + 'px',
       maxWidth: Math.max(hrect.right - root.left, root.right - hrect.left) - MENU_PADDING + 'px'
     };
-    if (top > bot && root.height - hrect.bottom - MENU_PADDING < dropdownHeight) {
+
+    if (position === 'top') {
       styles.top       = 'auto';
       styles.bottom    = bot + 'px';
       styles.maxHeight = Math.min(dropdownHeight, hrect.top - root.top - MENU_PADDING) + 'px';
@@ -193,12 +207,16 @@ function MdAutocompleteCtrl ($scope, $element, $mdUtil, $mdConstant, $mdTheming,
    */
   function configureWatchers () {
     var wait = parseInt($scope.delay, 10) || 0;
+
     $attrs.$observe('disabled', function (value) { ctrl.isDisabled = $mdUtil.parseAttributeBoolean(value, false); });
     $attrs.$observe('required', function (value) { ctrl.isRequired = $mdUtil.parseAttributeBoolean(value, false); });
     $attrs.$observe('readonly', function (value) { ctrl.isReadonly = $mdUtil.parseAttributeBoolean(value, false); });
+
     $scope.$watch('searchText', wait ? $mdUtil.debounce(handleSearchText, wait) : handleSearchText);
     $scope.$watch('selectedItem', selectedItemChange);
-    angular.element($window).on('resize', positionDropdown);
+
+    angular.element($window).on('resize', debouncedOnResize);
+
     $scope.$on('$destroy', cleanup);
   }
 
@@ -210,7 +228,8 @@ function MdAutocompleteCtrl ($scope, $element, $mdUtil, $mdConstant, $mdTheming,
       $mdUtil.enableScrolling();
     }
 
-    angular.element($window).off('resize', positionDropdown);
+    angular.element($window).off('resize', debouncedOnResize);
+
     if ( elements ){
       var items = ['ul', 'scroller', 'scrollContainer', 'input'];
       angular.forEach(items, function(key){
@@ -220,35 +239,62 @@ function MdAutocompleteCtrl ($scope, $element, $mdUtil, $mdConstant, $mdTheming,
   }
 
   /**
+   * Event handler to be called whenever the window resizes.
+   */
+  function onWindowResize() {
+    if (!ctrl.hidden) {
+      positionDropdown();
+    }
+  }
+
+  /**
    * Gathers all of the elements needed for this controller
    */
   function gatherElements () {
+
+    var snapWrap = gatherSnapWrap();
+
     elements = {
       main:  $element[0],
       scrollContainer: $element[0].querySelector('.md-virtual-repeat-container'),
       scroller: $element[0].querySelector('.md-virtual-repeat-scroller'),
       ul:    $element.find('ul')[0],
       input: $element.find('input')[0],
-      wrap:  $element.find('md-autocomplete-wrap')[0],
+      wrap:  snapWrap.wrap,
+      snap:  snapWrap.snap,
       root:  document.body
     };
 
     elements.li   = elements.ul.getElementsByTagName('li');
-    elements.snap = getSnapTarget();
     elements.$    = getAngularElements(elements);
 
     inputModelCtrl = elements.$.input.controller('ngModel');
   }
 
   /**
-   * Finds the element that the menu will base its position on
-   * @returns {*}
+   * Gathers the snap and wrap elements
+   *
    */
-  function getSnapTarget () {
-    for (var element = $element; element.length; element = element.parent()) {
-      if (angular.isDefined(element.attr('md-autocomplete-snap'))) return element[ 0 ];
+  function gatherSnapWrap() {
+    var element;
+    var value;
+    for (element = $element; element.length; element = element.parent()) {
+      value = element.attr('md-autocomplete-snap');
+      if (angular.isDefined(value)) break;
     }
-    return elements.wrap;
+
+    if (element.length) {
+      return {
+        snap: element[0],
+        wrap: (value.toLowerCase() === 'width') ? element[0] : $element.find('md-autocomplete-wrap')[0]
+      };
+    }
+
+    var wrap = $element.find('md-autocomplete-wrap')[0];
+    return {
+      snap: wrap,
+      wrap: wrap
+    };
   }
 
   /**

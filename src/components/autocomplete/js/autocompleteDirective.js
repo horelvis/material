@@ -34,11 +34,45 @@ angular
  *
  * There is an example below of how this should look.
  *
+ * ### Snapping Drop-Down
+ *
+ * You can cause the autocomplete drop-down to snap to an ancestor element by applying the
+ *     `md-autocomplete-snap` attribute to that element. You can also snap to the width of
+ *     the `md-autocomplete-snap` element by setting the attribute's value to `width`
+ *     (ie. `md-autocomplete-snap="width"`).
+ *
  * ### Notes
+ *
+ * **Autocomplete Dropdown Items Rendering**
+ *
  * The `md-autocomplete` uses the the <a ng-href="api/directive/mdVirtualRepeatContainer">VirtualRepeat</a>
  * directive for displaying the results inside of the dropdown.<br/>
+ *
  * > When encountering issues regarding the item template please take a look at the
  *   <a ng-href="api/directive/mdVirtualRepeatContainer">VirtualRepeatContainer</a> documentation.
+ *
+ * **Autocomplete inside of a Virtual Repeat**
+ *
+ * When using the `md-autocomplete` directive inside of a
+ * <a ng-href="api/directive/mdVirtualRepeatContainer">VirtualRepeatContainer</a> the dropdown items might
+ * not update properly, because caching of the results is enabled by default.
+ *
+ * The autocomplete will then show invalid dropdown items, because the VirtualRepeat only updates the
+ * scope bindings, rather than re-creating the `md-autocomplete` and the previous cached results will be used.
+ *
+ * > To avoid such problems ensure that the autocomplete does not cache any results.
+ *
+ * <hljs lang="html">
+ *   <md-autocomplete
+ *       md-no-cache="true"
+ *       md-selected-item="selectedItem"
+ *       md-items="item in items"
+ *       md-search-text="searchText"
+ *       md-item-text="item.display">
+ *     <span>{{ item.display }}</span>
+ *   </md-autocomplete>
+ * </hljs>
+ *
  *
  *
  * @param {expression} md-items An expression in the format of `item in results` to iterate over
@@ -61,6 +95,7 @@ angular
  *     make suggestions
  * @param {number=} md-delay Specifies the amount of time (in milliseconds) to wait before looking
  *     for results
+ * @param {boolean=} md-clear-button Whether the clear button for the autocomplete input should show up or not.
  * @param {boolean=} md-autofocus If true, the autocomplete will be automatically focused when a `$mdDialog`,
  *     `$mdBottomsheet` or `$mdSidenav`, which contains the autocomplete, is opening. <br/><br/>
  *     Also the autocomplete will immediately focus the input element.
@@ -88,6 +123,11 @@ angular
  *     the dropdown.<br/><br/>
  *     When the dropdown doesn't fit into the viewport, the dropdown will shrink
  *     as less as possible.
+ * @param {string=} md-dropdown-position Overrides the default dropdown position. Options: `top`, `bottom`.
+ * @param {string=} ng-trim If set to false, the search text will be not trimmed automatically.
+ *     Defaults to true.
+ * @param {string=} ng-pattern Adds the pattern validator to the ngModel of the search text.
+ *     [ngPattern Directive](https://docs.angularjs.org/api/ng/directive/ngPattern)
  *
  * @usage
  * ### Basic Example
@@ -119,6 +159,17 @@ angular
  *
  * In this example, our code utilizes `md-item-template` and `md-not-found` to specify the
  *     different parts that make up our component.
+ *
+ * ### Clear button for the input
+ * By default, for floating label autocomplete's the clear button is not showing up
+ * ([See specs](https://material.google.com/components/text-fields.html#text-fields-auto-complete-text-field))
+ *
+ * Nevertheless, developers are able to explicitly toggle the clear button for all types of autocomplete's.
+ *
+ * <hljs lang="html">
+ *   <md-autocomplete ... md-clear-button="true"></md-autocomplete>
+ *   <md-autocomplete ... md-clear-button="false"></md-autocomplete>
+ * </hljs>
  *
  * ### Example with validation
  * <hljs lang="html">
@@ -200,10 +251,12 @@ function MdAutocomplete ($$mdSvgRegistry) {
       menuClass:        '@?mdMenuClass',
       inputId:          '@?mdInputId',
       escapeOptions:    '@?mdEscapeOptions',
-      dropdownItems:    '=?mdDropdownItems'
+      dropdownItems:    '=?mdDropdownItems',
+      dropdownPosition: '@?mdDropdownPosition',
+      clearButton:      '=?mdClearButton'
     },
     compile: function(tElement, tAttrs) {
-      var attributes = ['md-select-on-focus', 'md-no-asterisk', 'ng-trim'];
+      var attributes = ['md-select-on-focus', 'md-no-asterisk', 'ng-trim', 'ng-pattern'];
       var input = tElement.find('input');
 
       attributes.forEach(function(attribute) {
@@ -218,6 +271,11 @@ function MdAutocomplete ($$mdSvgRegistry) {
         // Retrieve the state of using a md-not-found template by using our attribute, which will
         // be added to the element in the template function.
         ctrl.hasNotFound = !!element.attr('md-has-not-found');
+
+        // By default the inset autocomplete should show the clear button when not explicitly overwritten.
+        if (!angular.isDefined(attrs.mdClearButton) && !scope.floatingLabel) {
+          scope.clearButton = true;
+        }
       }
     },
     template:     function (element, attr) {
@@ -237,8 +295,11 @@ function MdAutocomplete ($$mdSvgRegistry) {
 
       return '\
         <md-autocomplete-wrap\
-            ng-class="{ \'md-whiteframe-z1\': !floatingLabel, \'md-menu-showing\': !$mdAutocompleteCtrl.hidden }">\
+            ng-class="{ \'md-whiteframe-z1\': !floatingLabel, \
+                        \'md-menu-showing\': !$mdAutocompleteCtrl.hidden, \
+                        \'md-show-clear-button\': !!clearButton }">\
           ' + getInputElement() + '\
+          ' + getClearButton() + '\
           <md-progress-linear\
               class="' + (attr.mdFloatingLabel ? 'md-inline' : '') + '"\
               ng-if="$mdAutocompleteCtrl.loadingIsVisible()"\
@@ -333,6 +394,8 @@ function MdAutocomplete ($$mdSvgRegistry) {
                 ng-required="$mdAutocompleteCtrl.isRequired"\
                 ng-disabled="$mdAutocompleteCtrl.isDisabled"\
                 ng-readonly="$mdAutocompleteCtrl.isReadonly"\
+                ng-minlength="inputMinlength"\
+                ng-maxlength="inputMaxlength"\
                 ng-model="$mdAutocompleteCtrl.scope.searchText"\
                 ng-keydown="$mdAutocompleteCtrl.keydown($event)"\
                 ng-blur="$mdAutocompleteCtrl.blur($event)"\
@@ -345,18 +408,21 @@ function MdAutocomplete ($$mdSvgRegistry) {
                 role="combobox"\
                 aria-haspopup="true"\
                 aria-activedescendant=""\
-                aria-expanded="{{!$mdAutocompleteCtrl.hidden}}"/>\
-            <button\
-                type="button"\
-                tabindex="-1"\
-                ng-if="$mdAutocompleteCtrl.scope.searchText && !$mdAutocompleteCtrl.isDisabled"\
-                ng-click="$mdAutocompleteCtrl.clear($event)">\
-              <md-icon md-svg-src="' + $$mdSvgRegistry.mdClose + '"></md-icon>\
-              <span class="md-visually-hidden">Clear</span>\
-            </button>\
-                ';
+                aria-expanded="{{!$mdAutocompleteCtrl.hidden}}"/>';
         }
       }
+
+      function getClearButton() {
+        return '' +
+          '<button ' +
+              'type="button" ' +
+              'aria-label="Clear Input" ' +
+              'tabindex="-1" ' +
+              'ng-if="clearButton && $mdAutocompleteCtrl.scope.searchText && !$mdAutocompleteCtrl.isDisabled" ' +
+              'ng-click="$mdAutocompleteCtrl.clear($event)">' +
+            '<md-icon md-svg-src="' + $$mdSvgRegistry.mdClose + '"></md-icon>' +
+          '</button>';
+        }
     }
   };
 }
