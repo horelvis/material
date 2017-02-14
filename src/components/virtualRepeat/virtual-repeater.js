@@ -761,13 +761,15 @@ VirtualRepeatController.prototype.virtualRepeatUpdate_ = function(items, oldItem
     this.container.setScrollSize(itemsLength * this.itemSize);
   }
 
-  if (this.isFirstRender) {
-    this.isFirstRender = false;
-    var startIndex = this.$attrs.mdStartIndex ?
-      this.$scope.$eval(this.$attrs.mdStartIndex) :
-      this.container.topIndex;
-    this.container.scrollToIndex(startIndex);
-  }
+  var cleanupFirstRender = false, firstRenderStartIndex;
+   if (this.isFirstRender) {
+     cleanupFirstRender = true;
+     this.isFirstRender = false;
+     firstRenderStartIndex = this.$attrs.mdStartIndex ?
+       this.$scope.$eval(this.$attrs.mdStartIndex) :
+       this.container.topIndex;
+     this.container.scrollToIndex(firstRenderStartIndex);
+   }
 
   // Detach and pool any blocks that are no longer in the viewport.
   Object.keys(this.blocks).forEach(function(blockIndex) {
@@ -819,6 +821,11 @@ VirtualRepeatController.prototype.virtualRepeatUpdate_ = function(items, oldItem
         this.domFragmentFromBlocks_(newEndBlocks),
         this.blocks[maxIndex] && this.blocks[maxIndex].element[0].nextSibling);
   }
+
+  // DOM manipulation may have altered scroll, so scroll again
+   if (cleanupFirstRender) {
+     this.container.scrollToIndex(firstRenderStartIndex);
+   }
 
   // Restore $$checkUrlChange.
   this.$browser.$$checkUrlChange = this.browserCheckUrlChange;
